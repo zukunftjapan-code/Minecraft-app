@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ブロックワールド</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="crosshair"></div>
+
+  <div id="hotbar"></div>
+
+  <div id="corner-buttons">
+    <button id="help-btn" title="あそびかたを見る">❓ あそびかた</button>
+    <button id="face-cam-btn" title="顔が見えるカメラに切りかえる">🙂 顔を見る</button>
+    <button id="reset-btn" title="ワールドをはじめからやり直す">🔄 リセット</button>
+  </div>
+
+  <div id="start-overlay">
+    <div id="start-box">
+      <h1>🧱 ブロックワールド</h1>
+      <p>じぶんだけの世界で、ブロックを置いたり こわしたりして あそぼう！</p>
+      <ul>
+        <li><b>W A S D</b> ： うごく</li>
+        <li><b>マウス</b> ： まわりを見る</li>
+        <li><b>左クリック</b> ： ブロックをこわす</li>
+        <li><b>右クリック</b> ： ブロックを置く</li>
+        <li><b>1〜6キー</b> ： 置くブロックをえらぶ</li>
+        <li><b>スペース</b> ： ジャンプ</li>
+        <li><b>C</b> ： 顔が見えるカメラに切りかえる</li>
+        <li><b>Esc</b> ： マウスをはなす</li>
+      </ul>
+      <button id="start-btn">はじめる ▶</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
