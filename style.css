@@ -98,11 +98,16 @@ canvas {
   text-shadow: 0 0 3px #000, 0 0 3px #000;
 }
 
-#reset-btn {
+#corner-buttons {
   position: fixed;
   top: 14px;
   right: 14px;
   z-index: 10;
+  display: flex;
+  gap: 8px;
+}
+
+#corner-buttons button {
   padding: 8px 14px;
   border-radius: 8px;
   border: none;
@@ -111,8 +116,18 @@ canvas {
   font-size: 14px;
   cursor: pointer;
 }
-#reset-btn:hover {
+#corner-buttons button:hover {
   background: rgba(0, 0, 0, 0.65);
+}
+#face-cam-btn.active {
+  background: #4caf50;
+}
+#face-cam-btn.active:hover {
+  background: #43a047;
+}
+
+body.face-mode #crosshair {
+  display: none;
 }
 
 #start-overlay {

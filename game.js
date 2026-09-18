@@ -14,8 +14,10 @@
   const MOVE_SPEED = 5.5; // ブロック/秒
   const JUMP_SPEED = 6.5;
   const GRAVITY = 16;
-  const CAMERA_DISTANCE = 5; // キャラクターからカメラまでの距離
+  const CAMERA_DISTANCE = 5; // キャラクターからカメラまでの距離 (うしろから見るモード)
   const CAMERA_TARGET_HEIGHT = 1.1; // キャラクターの足元から見上げる高さ
+  const FACE_CAMERA_DISTANCE = 2.6; // 顔を見るモードでのカメラ距離
+  const FACE_CAMERA_TARGET_HEIGHT = 0.85; // 顔の高さ
   const STORAGE_KEY = "block-world-save-v1";
   const SEED = 1337;
 
@@ -349,6 +351,7 @@
   const keysDown = new Set();
   let selectedIndex = 0;
   let pointerLocked = false;
+  let cameraMode = "back"; // "back": 建築しながら遊ぶ通常視点 / "front": 顔を見る視点
 
   // ---------------------------------------------------------------------
   // ホットバー UI
@@ -393,8 +396,20 @@
     keysDown.add(e.code);
     const num = parseInt(e.key, 10);
     if (num >= 1 && num <= BLOCK_TYPES.length) selectSlot(num - 1);
+    if (e.code === "KeyC" && !e.repeat) toggleCameraMode();
   });
   window.addEventListener("keyup", (e) => keysDown.delete(e.code));
+
+  const faceCamBtn = document.getElementById("face-cam-btn");
+  faceCamBtn.addEventListener("click", () => toggleCameraMode());
+
+  function toggleCameraMode() {
+    cameraMode = cameraMode === "back" ? "front" : "back";
+    document.body.classList.toggle("face-mode", cameraMode === "front");
+    faceCamBtn.classList.toggle("active", cameraMode === "front");
+    faceCamBtn.textContent = cameraMode === "front" ? "🎮 もどる" : "🙂 顔を見る";
+    highlightBox.visible = false;
+  }
 
   window.addEventListener("mousemove", (e) => {
     if (!pointerLocked) return;
@@ -406,7 +421,7 @@
   });
 
   window.addEventListener("mousedown", (e) => {
-    if (!pointerLocked) return;
+    if (!pointerLocked || cameraMode === "front") return;
     if (e.button === 0) breakBlock();
     if (e.button === 2) placeBlock();
   });
@@ -537,23 +552,37 @@
     character.position.set(player.x, feetY, player.z);
     character.rotation.y = player.yaw;
 
-    // 三人称カメラ: キャラクターの頭あたりを見つめながら、視線の向きに合わせて後ろを周回する
-    const cosPitch = Math.cos(player.pitch);
-    const lookDir = new THREE.Vector3(
-      -Math.sin(player.yaw) * cosPitch,
-      Math.sin(player.pitch),
-      -Math.cos(player.yaw) * cosPitch
-    );
-    const target = new THREE.Vector3(player.x, feetY + CAMERA_TARGET_HEIGHT, player.z);
-    const backDir = lookDir.clone().negate();
-    const distance = resolveCameraDistance(target, backDir, CAMERA_DISTANCE);
-    camera.position.copy(target).add(backDir.multiplyScalar(distance));
-    const minCameraY = groundHeightAt(camera.position.x, camera.position.z) + 0.3;
-    if (camera.position.y < minCameraY) camera.position.y = minCameraY;
-    camera.lookAt(target);
+    if (cameraMode === "front") {
+      // 顔を見るモード: キャラクターの正面側から顔を見つめる (向きに合わせてカメラも回る)
+      const target = new THREE.Vector3(player.x, feetY + FACE_CAMERA_TARGET_HEIGHT, player.z);
+      const distance = resolveCameraDistance(target, forward, FACE_CAMERA_DISTANCE);
+      camera.position.copy(target).add(forward.clone().multiplyScalar(distance));
+      const minCameraY = groundHeightAt(camera.position.x, camera.position.z) + 0.3;
+      if (camera.position.y < minCameraY) camera.position.y = minCameraY;
+      camera.lookAt(target);
+    } else {
+      // 三人称カメラ: キャラクターの頭あたりを見つめながら、視線の向きに合わせて後ろを周回する
+      const cosPitch = Math.cos(player.pitch);
+      const lookDir = new THREE.Vector3(
+        -Math.sin(player.yaw) * cosPitch,
+        Math.sin(player.pitch),
+        -Math.cos(player.yaw) * cosPitch
+      );
+      const target = new THREE.Vector3(player.x, feetY + CAMERA_TARGET_HEIGHT, player.z);
+      const backDir = lookDir.clone().negate();
+      const distance = resolveCameraDistance(target, backDir, CAMERA_DISTANCE);
+      camera.position.copy(target).add(backDir.multiplyScalar(distance));
+      const minCameraY = groundHeightAt(camera.position.x, camera.position.z) + 0.3;
+      if (camera.position.y < minCameraY) camera.position.y = minCameraY;
+      camera.lookAt(target);
+    }
   }
 
   function updateHighlight() {
+    if (cameraMode === "front") {
+      highlightBox.visible = false;
+      return;
+    }
     const hit = raycastBlocks();
     if (hit) {
       highlightBox.visible = true;
