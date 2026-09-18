@@ -9,11 +9,13 @@
   // ---------------------------------------------------------------------
   const WORLD_SIZE = 20; // ワールドの一辺のブロック数 (0..WORLD_SIZE-1)
   const MAX_HEIGHT = 20; // 積み上げられる最大の高さ
-  const REACH = 6; // ブロックを操作できる距離
+  const REACH = 11; // ブロックを操作できる距離 (三人称視点でカメラが後ろにあるぶん長めに取る)
   const EYE_HEIGHT = 1.6;
   const MOVE_SPEED = 5.5; // ブロック/秒
   const JUMP_SPEED = 6.5;
   const GRAVITY = 16;
+  const CAMERA_DISTANCE = 5; // キャラクターからカメラまでの距離
+  const CAMERA_TARGET_HEIGHT = 1.1; // キャラクターの足元から見上げる高さ
   const STORAGE_KEY = "block-world-save-v1";
   const SEED = 1337;
 
@@ -231,6 +233,70 @@
   scene.add(highlightBox);
 
   // ---------------------------------------------------------------------
+  // 自分のキャラクター (黄色くてほっぺが赤い、電気ネズミ風のオリジナルキャラ)
+  // ローカル座標では -z 方向を向いている
+  // ---------------------------------------------------------------------
+  function createCharacter() {
+    const group = new THREE.Group();
+    const yellow = new THREE.MeshLambertMaterial({ color: 0xffd93d });
+    const black = new THREE.MeshLambertMaterial({ color: 0x2b2b2b });
+    const red = new THREE.MeshLambertMaterial({ color: 0xe3494f });
+    const brown = new THREE.MeshLambertMaterial({ color: 0x8a5a2b });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 0.4), yellow);
+    body.position.y = 0.3;
+    group.add(body);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.46, 0.46), yellow);
+    head.position.y = 0.83;
+    group.add(head);
+
+    [-1, 1].forEach((side) => {
+      const earBase = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 4), yellow);
+      earBase.position.set(side * 0.16, 1.2, 0);
+      earBase.rotation.z = side * -0.25;
+      group.add(earBase);
+
+      const earTip = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.14, 4), black);
+      earTip.position.set(side * 0.2, 1.42, 0);
+      earTip.rotation.z = side * -0.25;
+      group.add(earTip);
+
+      const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), red);
+      cheek.position.set(side * 0.2, 0.78, -0.231);
+      cheek.rotation.y = Math.PI;
+      group.add(cheek);
+
+      const eye = new THREE.Mesh(new THREE.CircleGeometry(0.045, 10), black);
+      eye.position.set(side * 0.13, 0.88, -0.231);
+      eye.rotation.y = Math.PI;
+      group.add(eye);
+
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.14), yellow);
+      arm.position.set(side * 0.32, 0.28, -0.05);
+      group.add(arm);
+
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.18), yellow);
+      leg.position.set(side * 0.16, 0.1, 0);
+      group.add(leg);
+    });
+
+    const tailBase = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), brown);
+    tailBase.position.set(0, 0.5, 0.32);
+    tailBase.rotation.x = -0.5;
+    group.add(tailBase);
+
+    const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.1), yellow);
+    tailTip.position.set(0, 0.86, 0.52);
+    tailTip.rotation.x = -0.9;
+    group.add(tailTip);
+
+    return group;
+  }
+  const character = createCharacter();
+  scene.add(character);
+
+  // ---------------------------------------------------------------------
   // プレイヤー
   // ---------------------------------------------------------------------
   const player = {
@@ -359,19 +425,29 @@
   // レイキャストでブロック操作
   // ---------------------------------------------------------------------
   const raycaster = new THREE.Raycaster();
-  raycaster.far = REACH;
   const centerNDC = new THREE.Vector2(0, 0);
+  const allBlockMeshes = BLOCK_TYPES.map((b) => meshByType[b.id]);
 
   function raycastBlocks() {
+    raycaster.far = REACH;
     raycaster.setFromCamera(centerNDC, camera);
-    const meshes = BLOCK_TYPES.map((b) => meshByType[b.id]);
-    const hits = raycaster.intersectObjects(meshes);
+    const hits = raycaster.intersectObjects(allBlockMeshes);
     if (hits.length === 0) return null;
     const hit = hits[0];
     const type = hit.object.userData.blockType;
     const pos = positionsByType[type][hit.instanceId];
     if (!pos) return null;
     return { pos, normal: hit.face.normal.clone(), type };
+  }
+
+  // カメラが地形や木にめり込まないよう、キャラクターとカメラの間に障害物があれば
+  // カメラをその手前まで引き寄せる (簡易な三人称カメラ衝突回避)
+  function resolveCameraDistance(target, backDir, maxDistance) {
+    raycaster.far = maxDistance;
+    raycaster.set(target, backDir);
+    const hits = raycaster.intersectObjects(allBlockMeshes);
+    if (hits.length === 0) return maxDistance;
+    return Math.max(0.6, hits[0].distance - 0.3);
   }
 
   function isPlayerCell(x, y, z) {
@@ -456,10 +532,25 @@
       }
     }
 
-    camera.position.set(player.x, player.y, player.z);
-    camera.rotation.order = "YXZ";
-    camera.rotation.y = player.yaw;
-    camera.rotation.x = player.pitch;
+    // キャラクターを足元の位置に合わせて表示し、向いている方向を反映する
+    const feetY = player.y - EYE_HEIGHT;
+    character.position.set(player.x, feetY, player.z);
+    character.rotation.y = player.yaw;
+
+    // 三人称カメラ: キャラクターの頭あたりを見つめながら、視線の向きに合わせて後ろを周回する
+    const cosPitch = Math.cos(player.pitch);
+    const lookDir = new THREE.Vector3(
+      -Math.sin(player.yaw) * cosPitch,
+      Math.sin(player.pitch),
+      -Math.cos(player.yaw) * cosPitch
+    );
+    const target = new THREE.Vector3(player.x, feetY + CAMERA_TARGET_HEIGHT, player.z);
+    const backDir = lookDir.clone().negate();
+    const distance = resolveCameraDistance(target, backDir, CAMERA_DISTANCE);
+    camera.position.copy(target).add(backDir.multiplyScalar(distance));
+    const minCameraY = groundHeightAt(camera.position.x, camera.position.z) + 0.3;
+    if (camera.position.y < minCameraY) camera.position.y = minCameraY;
+    camera.lookAt(target);
   }
 
   function updateHighlight() {
