@@ -377,9 +377,18 @@
   // ---------------------------------------------------------------------
   const canvas = renderer.domElement;
 
-  document.getElementById("start-btn").addEventListener("click", () => {
-    document.getElementById("start-overlay").classList.add("hidden");
+  const startOverlay = document.getElementById("start-overlay");
+  const startBtn = document.getElementById("start-btn");
+
+  startBtn.addEventListener("click", () => {
+    startOverlay.classList.add("hidden");
     canvas.requestPointerLock();
+  });
+
+  document.getElementById("help-btn").addEventListener("click", () => {
+    startBtn.textContent = "もどる ▶";
+    startOverlay.classList.remove("hidden");
+    if (document.exitPointerLock) document.exitPointerLock();
   });
 
   canvas.addEventListener("click", () => {
